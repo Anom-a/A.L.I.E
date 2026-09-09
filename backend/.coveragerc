@@ -1,6 +1,8 @@
 [run]
 branch = True
-source = domain
+source =
+    domain
+    adapters
 
 [report]
 show_missing = True

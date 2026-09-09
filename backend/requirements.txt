@@ -1,6 +1,17 @@
-# Phase 0 dev/test dependencies only.
-# The domain layer itself depends on nothing beyond the Python standard library.
-# Do NOT add FastAPI, LangGraph, OpenAI, httpx, pydantic, SQLAlchemy, Redis,
-# or any third-party API SDK in Phase 0.
+# Phase 1 dependencies.
+#
+# The domain layer still depends on nothing beyond the Python standard library;
+# every package below is used only by adapters, infrastructure, or the tests.
+# Do NOT add FastAPI, LangGraph, LangChain, SQLAlchemy, Redis, or any other
+# future-phase dependency here.
+
+# --- Adapters (frameworks & drivers) ---
+openai
+tavily-python
+
+# --- Configuration ---
+python-dotenv
+
+# --- Dev / test ---
 pytest
 pytest-cov
