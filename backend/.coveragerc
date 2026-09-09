@@ -1,0 +1,14 @@
+[run]
+branch = True
+source = domain
+
+[report]
+show_missing = True
+# Protocol interfaces are pure declarations with no runtime body to execute
+# (their method stubs are `...`). Exclude those non-executable stubs so the
+# coverage figure reflects real domain behaviour rather than interface noise.
+exclude_also =
+    ^\s*\.\.\.\s*$
+    class .*\bProtocol\b.*:
+    if TYPE_CHECKING:
+    @(typing\.)?overload

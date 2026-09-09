@@ -1,0 +1,6 @@
+# Phase 0 dev/test dependencies only.
+# The domain layer itself depends on nothing beyond the Python standard library.
+# Do NOT add FastAPI, LangGraph, OpenAI, httpx, pydantic, SQLAlchemy, Redis,
+# or any third-party API SDK in Phase 0.
+pytest
+pytest-cov

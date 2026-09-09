@@ -1,0 +1,39 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Testing / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.cache/
+
+# --- Environment / secrets ---
+# Never commit a real .env; only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
+# --- Type checker / lint caches ---
+.mypy_cache/
+.ruff_cache/
+
+# --- IDE / editor artifacts ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
