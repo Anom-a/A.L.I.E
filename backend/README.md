@@ -4,13 +4,13 @@ A research-agent system that decomposes a research request into sub-questions,
 gathers evidence from tools with provenance, and synthesises a cited report.
 
 This directory is the **backend**, built with **Clean Architecture**. It is
-currently at **Phase 1 — External Integrations**.
+currently at **Phase 2 — Planner Use Case**.
 
-> **Phase 1 adds the first two real outbound integrations**: an
-> OpenAI-compatible LLM adapter and a Tavily web-search gateway. There is still
-> no use case, orchestration, API, or persistence — this phase only proves the
-> Phase 0 ports can be plugged into real providers without the domain learning
-> anything about them.
+> **Phase 2 adds the first use case**: `PlanSubQuestionsUseCase` turns one
+> research topic into a bounded list of domain `SubQuestion` objects through the
+> `LLMPort`. It proves the application layer can drive the Phase 0 port and the
+> Phase 1 adapter without knowing either provider exists. There is still no
+> routing, retrieval, criticism, synthesis, orchestration, API, or persistence.
 
 ---
 
@@ -19,8 +19,9 @@ currently at **Phase 1 — External Integrations**.
 | Phase | Scope | State |
 |-------|-------|-------|
 | **0** | Domain entities, value objects, ports, exceptions, tests | ✅ done |
-| **1** | LLM adapter, search gateway, configuration, smoke test | ✅ **this phase** |
-| 2+ | Use cases, planner, router, critic, synthesiser, orchestration, API, persistence | ⛔ not started |
+| **1** | LLM adapter, search gateway, configuration, smoke test | ✅ done |
+| **2** | Planner use case (topic → sub-questions) | ✅ **this phase** |
+| 3+ | Router, critic, synthesiser, orchestration, API, persistence | ⛔ not started |
 
 ### Phase 1 scope
 
@@ -33,19 +34,29 @@ currently at **Phase 1 — External Integrations**.
 - **Unit tests** that never touch the network, **integration tests** that do but
   skip themselves when credentials are absent, and a **smoke test** script.
 
-Nothing from a later phase (planner, router, critic, synthesiser, LangGraph,
-FastAPI, persistence) is implemented here.
+### Phase 2 scope
+
+- **`PlanSubQuestionsUseCase`** — the first application-layer use case: one
+  research topic in, a bounded list of `SubQuestion` entities out.
+- **`MAX_SUBQUESTIONS`** — the one new configuration value, injected into the
+  use case as a plain integer.
+- **Unit tests** driven by a fake `LLMPort`, an optional **integration test**
+  against a real endpoint, and `scripts/phase2_smoke_test.py`.
+
+The planner only *decomposes*. It does not classify, route, retrieve, criticise
+or synthesise, and it never calls Tavily. Nothing from a later phase (router,
+critic, synthesiser, LangGraph, FastAPI, persistence) is implemented here.
 
 ## Clean Architecture dependency rule
 
 Dependencies point **inward only**:
 
 ```
-Frameworks & Drivers   (infrastructure/config.py — env & .env)      ← PHASE 1
+Frameworks & Drivers   (infrastructure/config.py — env & .env)      ← Phase 1
         ↓
-Interface Adapters     (OpenAICompatibleLLM, TavilyGateway)         ← PHASE 1
+Interface Adapters     (OpenAICompatibleLLM, TavilyGateway)         ← Phase 1
         ↓
-Application            (use cases, orchestration)                    ← later
+Application            (PlanSubQuestionsUseCase)                    ← PHASE 2
         ↓
 Domain                 (entities, value objects, ports)              ← Phase 0
 ```
@@ -64,6 +75,10 @@ tests in [`tests/unit/test_domain_imports.py`](tests/unit/test_domain_imports.py
   their constructors; only `infrastructure/config.py` touches `os.environ` or
   `.env`. That is also why the adapters do not import `infrastructure` — the
   arrow would point outward.
+- **The application layer imports the domain and nothing else** — no SDK, no
+  framework, no adapter module, no `os`, no `dotenv`. `PlanSubQuestionsUseCase`
+  depends on `LLMPort`; the concrete adapter and the sub-question limit are both
+  injected by the composition root (a script, and later the API layer).
 
 ## Directory structure
 
@@ -76,6 +91,9 @@ backend/
 │   ├── value_objects/                 # ToolCategory, Confidence
 │   └── ports/                         # LLMPort, SearchToolPort,
 │                                      # ResearchJobRepositoryPort
+├── application/                       # Phase 2 — domain-only dependencies
+│   └── use_cases/
+│       └── plan_sub_questions.py      # PlanSubQuestionsUseCase, PlanningError
 ├── adapters/                          # Phase 1 — the only place SDKs live
 │   ├── llm/
 │   │   └── openai_compatible_llm.py   # OpenAICompatibleLLM  -> LLMPort
@@ -84,7 +102,8 @@ backend/
 ├── infrastructure/
 │   └── config.py                      # the only reader of env / .env
 ├── scripts/
-│   └── phase1_smoke_test.py           # one real call through each adapter
+│   ├── phase1_smoke_test.py           # one real call through each adapter
+│   └── phase2_smoke_test.py           # one real topic through the planner
 ├── tests/
 │   ├── unit/                          # no network, ever
 │   └── integration/                   # real APIs; skipped without credentials
@@ -173,6 +192,47 @@ result order is preserved.
   values, and such a result carries no usable provenance.
 - Every provider failure is raised as **`SearchGatewayError`**.
 
+## Application layer
+
+### `PlanSubQuestionsUseCase`
+
+The planner: one research topic in, a bounded list of `SubQuestion` entities out.
+
+```python
+from application.use_cases.plan_sub_questions import PlanSubQuestionsUseCase
+
+planner = PlanSubQuestionsUseCase(
+    llm=llm,                                       # any LLMPort
+    max_subquestions=config.planner.max_subquestions,
+)
+sub_questions = planner.execute(
+    topic="How does containerization affect backend deployment?",
+    research_query_id=research_query.id,
+)                                                  # -> list[SubQuestion]
+```
+
+- It holds a **port, not a client**. The adapter and the limit are injected, so
+  the use case never learns which provider answers, never reads configuration,
+  and never opens a socket itself.
+- It asks `complete_structured` for one small schema —
+  `{"sub_questions": [{"text": ...}]}` — and nothing more. The prompt lives in
+  the use case (the domain has no prompts) and asks only for **decomposition**:
+  no tool selection, no category, no ranking.
+- Every planned `SubQuestion` is created with `ToolCategory.GENERAL` and the
+  domain's default status (`PENDING`). Classification and routing belong to a
+  later phase, which will replace the category.
+- **Model output is never trusted.** The response must be a mapping holding a
+  `sub_questions` *list* of objects with non-empty `text`; anything else is
+  rejected. Texts are trimmed and whitespace-collapsed, duplicates (ignoring
+  case and spacing) are dropped keeping the first occurrence, and the result is
+  truncated last — so the cap always applies to *usable* questions and the
+  return value is never longer than `max_subquestions`.
+- Failures are `PlanningError`s, split three ways so a caller can tell them
+  apart: **`InvalidPlanningRequest`** (bad topic, id, or bound),
+  **`MalformedPlanError`** (the model answered with something unusable), and
+  **`LLMUnavailableError`** (the call itself failed — the adapter's own
+  exception is kept as the `__cause__` but never escapes).
+
 ## Configuration
 
 `infrastructure/config.py` is the only module that reads configuration. It uses
@@ -186,6 +246,7 @@ singleton. Missing or malformed values raise `ConfigError`.
 | `OPENAI_MODEL_PLANNER`    | yes      | Model identifier to request. |
 | `TAVILY_API_KEY`          | yes      | Credential for Tavily. |
 | `REQUEST_TIMEOUT_SECONDS` | no       | Per-request timeout; defaults to `20`. |
+| `MAX_SUBQUESTIONS`        | no       | Upper bound on planned sub-questions; defaults to `5`. |
 
 Local development uses a `.env` file loaded through `python-dotenv`. Real
 environment variables always win over the file, so deployments can simply export
@@ -221,8 +282,8 @@ pytest -m "not integration"
 # so a missing credential never fails the run:
 pytest
 
-# Coverage of the two inner layers:
-pytest --cov=domain --cov=adapters --cov-report=term-missing
+# Coverage of the inner layers:
+pytest --cov=domain --cov=application --cov-report=term-missing -m "not integration"
 
 # Real API calls (requires credentials in .env or the environment):
 pytest -m integration
@@ -251,15 +312,34 @@ Phase 1 smoke test: PASSED
 It exits `1` and prints `FAILED` if configuration is incomplete or either
 provider call fails. It is a connectivity check, not a research workflow.
 
+One real planning run, printing the decomposition:
+
+```bash
+python scripts/phase2_smoke_test.py
+```
+
+```
+Phase 2 Planner
+Topic: How does containerization affect backend deployment?
+
+1. How does containerization influence the scalability of backend services …
+2. …
+
+Phase 2 smoke test: PASSED (5/5 sub-questions, model=…)
+```
+
+The questions are model-generated, so they differ from run to run. Tavily is not
+called and no research is performed.
+
 ## Not implemented yet (future phases)
 
 Intentionally **out of scope** until later phases:
 
 - Specialised research gateways (repair / academic / news)
-- Planner (query → sub-questions), sub-question generation, category classification
+- Category classification (planned sub-questions all start as `GENERAL`)
 - Router (sub-question → tool category → gateway) and fallback search
 - Critic (evidence evaluation / confidence)
 - Synthesizer (evidence → cited `Report`)
-- Application/use-case layer and LangGraph orchestration
+- LangGraph orchestration of the use cases
 - Async REST API (FastAPI), job persistence (behind `ResearchJobRepositoryPort`), Redis, auth
 - Retry / backoff policies

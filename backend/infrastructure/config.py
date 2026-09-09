@@ -16,7 +16,7 @@ variables. ``.env`` is git-ignored and must never be committed.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Mapping, Optional
 
 from dotenv import load_dotenv
@@ -24,11 +24,15 @@ from dotenv import load_dotenv
 #: Fallback when ``REQUEST_TIMEOUT_SECONDS`` is not set.
 DEFAULT_REQUEST_TIMEOUT_SECONDS: float = 20.0
 
+#: Fallback when ``MAX_SUBQUESTIONS`` is not set.
+DEFAULT_MAX_SUBQUESTIONS: int = 5
+
 ENV_OPENAI_API_KEY = "OPENAI_API_KEY"
 ENV_OPENAI_BASE_URL = "OPENAI_BASE_URL"
 ENV_OPENAI_MODEL_PLANNER = "OPENAI_MODEL_PLANNER"
 ENV_TAVILY_API_KEY = "TAVILY_API_KEY"
 ENV_REQUEST_TIMEOUT_SECONDS = "REQUEST_TIMEOUT_SECONDS"
+ENV_MAX_SUBQUESTIONS = "MAX_SUBQUESTIONS"
 
 
 class ConfigError(RuntimeError):
@@ -58,11 +62,19 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class PlannerConfig:
+    """Bounds the planning use case; injected into it as a plain value."""
+
+    max_subquestions: int = DEFAULT_MAX_SUBQUESTIONS
+
+
+@dataclass(frozen=True)
 class AppConfig:
-    """All configuration the process needs in Phase 1."""
+    """All configuration the process needs so far."""
 
     llm: LLMConfig
     search: SearchConfig
+    planner: PlannerConfig = field(default_factory=PlannerConfig)
 
 
 def load_env_file(path: Optional[str] = None) -> None:
@@ -111,6 +123,23 @@ def _timeout_seconds(env: Mapping[str, str]) -> float:
     return value
 
 
+def _max_subquestions(env: Mapping[str, str]) -> int:
+    raw = _optional(env, ENV_MAX_SUBQUESTIONS)
+    if raw is None:
+        return DEFAULT_MAX_SUBQUESTIONS
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ConfigError(
+            f"{ENV_MAX_SUBQUESTIONS} must be an integer, got {raw!r}"
+        ) from exc
+    if value < 1:
+        raise ConfigError(
+            f"{ENV_MAX_SUBQUESTIONS} must be at least 1, got {value}"
+        )
+    return value
+
+
 def load_llm_config(env: Optional[Mapping[str, str]] = None) -> LLMConfig:
     """Build :class:`LLMConfig` from ``env`` (defaults to ``os.environ``).
 
@@ -136,7 +165,21 @@ def load_search_config(env: Optional[Mapping[str, str]] = None) -> SearchConfig:
     )
 
 
+def load_planner_config(env: Optional[Mapping[str, str]] = None) -> PlannerConfig:
+    """Build :class:`PlannerConfig` from ``env`` (defaults to ``os.environ``).
+
+    ``MAX_SUBQUESTIONS`` is optional: omitting it uses
+    :data:`DEFAULT_MAX_SUBQUESTIONS`.
+    """
+    source = _source(env)
+    return PlannerConfig(max_subquestions=_max_subquestions(source))
+
+
 def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
     """Build the full :class:`AppConfig`; raises :class:`ConfigError` if incomplete."""
     source = _source(env)
-    return AppConfig(llm=load_llm_config(source), search=load_search_config(source))
+    return AppConfig(
+        llm=load_llm_config(source),
+        search=load_search_config(source),
+        planner=load_planner_config(source),
+    )
