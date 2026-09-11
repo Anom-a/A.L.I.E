@@ -18,10 +18,9 @@ currently at **Phase 2 — Planner Use Case**.
 
 | Phase | Scope | State |
 |-------|-------|-------|
-| **0** | Domain entities, value objects, ports, exceptions, tests | ✅ done |
-| **1** | LLM adapter, search gateway, configuration, smoke test | ✅ done |
-| **2** | Planner use case (topic → sub-questions) | ✅ **this phase** |
-| 3+ | Router, critic, synthesiser, orchestration, API, persistence | ⛔ not started |
+| **0-6**| Domain, Adapters, Planner, Router, Retrieve, Critique, Synthesize | ✅ done |
+| **7** | LangGraph orchestration (ResearchGraph) | ✅ done |
+| 8+ | API, persistence | ⛔ not started |
 
 ### Phase 1 scope
 

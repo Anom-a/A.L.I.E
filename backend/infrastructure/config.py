@@ -33,6 +33,10 @@ ENV_OPENAI_MODEL_PLANNER = "OPENAI_MODEL_PLANNER"
 ENV_TAVILY_API_KEY = "TAVILY_API_KEY"
 ENV_REQUEST_TIMEOUT_SECONDS = "REQUEST_TIMEOUT_SECONDS"
 ENV_MAX_SUBQUESTIONS = "MAX_SUBQUESTIONS"
+ENV_MAX_RETRIEVAL_LOOPS = "MAX_RETRIEVAL_LOOPS"
+
+#: Fallback when ``MAX_RETRIEVAL_LOOPS`` is not set.
+DEFAULT_MAX_RETRIEVAL_LOOPS: int = 3
 
 
 class ConfigError(RuntimeError):
@@ -69,12 +73,20 @@ class PlannerConfig:
 
 
 @dataclass(frozen=True)
+class GraphConfig:
+    """Bounds the research graph loops; injected into it as a plain value."""
+
+    max_retrieval_loops: int = DEFAULT_MAX_RETRIEVAL_LOOPS
+
+
+@dataclass(frozen=True)
 class AppConfig:
     """All configuration the process needs so far."""
 
     llm: LLMConfig
     search: SearchConfig
     planner: PlannerConfig = field(default_factory=PlannerConfig)
+    graph: GraphConfig = field(default_factory=GraphConfig)
 
 
 def load_env_file(path: Optional[str] = None) -> None:
@@ -140,6 +152,23 @@ def _max_subquestions(env: Mapping[str, str]) -> int:
     return value
 
 
+def _max_retrieval_loops(env: Mapping[str, str]) -> int:
+    raw = _optional(env, ENV_MAX_RETRIEVAL_LOOPS)
+    if raw is None:
+        return DEFAULT_MAX_RETRIEVAL_LOOPS
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ConfigError(
+            f"{ENV_MAX_RETRIEVAL_LOOPS} must be an integer, got {raw!r}"
+        ) from exc
+    if value < 0:
+        raise ConfigError(
+            f"{ENV_MAX_RETRIEVAL_LOOPS} must be at least 0, got {value}"
+        )
+    return value
+
+
 def load_llm_config(env: Optional[Mapping[str, str]] = None) -> LLMConfig:
     """Build :class:`LLMConfig` from ``env`` (defaults to ``os.environ``).
 
@@ -175,6 +204,12 @@ def load_planner_config(env: Optional[Mapping[str, str]] = None) -> PlannerConfi
     return PlannerConfig(max_subquestions=_max_subquestions(source))
 
 
+def load_graph_config(env: Optional[Mapping[str, str]] = None) -> GraphConfig:
+    """Build :class:`GraphConfig` from ``env`` (defaults to ``os.environ``)."""
+    source = _source(env)
+    return GraphConfig(max_retrieval_loops=_max_retrieval_loops(source))
+
+
 def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
     """Build the full :class:`AppConfig`; raises :class:`ConfigError` if incomplete."""
     source = _source(env)
@@ -182,4 +217,5 @@ def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
         llm=load_llm_config(source),
         search=load_search_config(source),
         planner=load_planner_config(source),
+        graph=load_graph_config(source),
     )
