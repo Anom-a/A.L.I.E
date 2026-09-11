@@ -1,0 +1,6 @@
+{
+  "name": "A.L.I.E. Lucent Emulator",
+  "description": "Applied Lucent Intelligence Emulator for research synthesis and analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
