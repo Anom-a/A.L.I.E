@@ -16,7 +16,8 @@ from uuid import UUID, uuid4
 import pytest
 
 import adapters.gateways.tavily_gateway as module
-from adapters.gateways.tavily_gateway import SearchGatewayError, TavilyGateway
+from adapters.gateways.tavily_gateway import TavilyGateway
+from adapters.exceptions import SearchGatewayError
 from domain.entities.citation import Citation
 from domain.entities.evidence import Evidence, SourceType
 from domain.entities.sub_question import SubQuestion

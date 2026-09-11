@@ -22,7 +22,7 @@ from domain.entities.citation import Citation
 from domain.entities.evidence import Evidence, SourceType
 from domain.entities.sub_question import SubQuestion
 
-from adapters.gateways.tavily_gateway import SearchGatewayError
+from adapters.exceptions import SearchGatewayError
 
 #: Default base URL for the iFixit public API v2.0.
 DEFAULT_BASE_URL: str = "https://www.ifixit.com/api/2.0"

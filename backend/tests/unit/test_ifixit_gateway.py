@@ -16,7 +16,7 @@ import pytest
 
 import adapters.gateways.ifixit_gateway as module
 from adapters.gateways.ifixit_gateway import IFixitGateway, DEFAULT_BASE_URL
-from adapters.gateways.tavily_gateway import SearchGatewayError
+from adapters.exceptions import SearchGatewayError
 from domain.entities.citation import Citation
 from domain.entities.evidence import Evidence, SourceType
 from domain.entities.sub_question import SubQuestion

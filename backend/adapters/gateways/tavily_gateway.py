@@ -19,22 +19,16 @@ from uuid import NAMESPACE_URL, uuid5
 
 from tavily import TavilyClient
 
+from adapters.exceptions import SearchGatewayError
 from domain.entities.citation import Citation
 from domain.entities.evidence import Evidence, SourceType
 from domain.entities.sub_question import SubQuestion
+from domain.ports.search_tool_port import SearchToolPort
 
 #: Used when the caller does not supply a timeout.
 DEFAULT_TIMEOUT_SECONDS: float = 20.0
 #: How many results to ask Tavily for in a single search.
 DEFAULT_MAX_RESULTS: int = 5
-
-
-class SearchGatewayError(RuntimeError):
-    """Raised when the search provider fails or returns an unusable payload.
-
-    Every provider-side failure is translated into this adapter-level error so
-    callers never have to catch (or import) a Tavily exception type.
-    """
 
 
 def _utc_now() -> datetime:
