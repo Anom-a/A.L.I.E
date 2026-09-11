@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from typing import Callable, Optional
 from uuid import UUID
 
+from application.use_cases.critique_evidence import CritiqueEvidenceUseCase, CritiqueError
 from application.use_cases.route_tool import RouteToolUseCase, RoutingError
 from domain.entities.evidence import Evidence
 from domain.entities.sub_question import SubQuestion
@@ -92,6 +93,7 @@ class RetrieveEvidenceUseCase:
         router: RouteToolUseCase,
         gateways: dict[str, SearchToolPort],
         fallback_gateway: SearchToolPort,
+        critic: CritiqueEvidenceUseCase,
         *,
         clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
@@ -102,11 +104,13 @@ class RetrieveEvidenceUseCase:
             gateways: Map of tool identifier → gateway implementation.
             fallback_gateway: The gateway used when the primary tool fails
                 or returns empty evidence.
+            critic: The Phase 5 critic used to evaluate evidence.
             clock: Source of timestamps for :class:`ToolCallAttempt` records.
         """
         self._router = router
         self._gateways = gateways
         self._fallback_gateway = fallback_gateway
+        self._critic = critic
         self._clock = clock if clock is not None else _utc_now
 
     def execute(self, sub_question: SubQuestion) -> RetrievalResult:
@@ -152,14 +156,17 @@ class RetrieveEvidenceUseCase:
         )
 
         if primary_evidence:
-            return RetrievalResult(
-                sub_question_id=sub_question.id,
-                evidence=primary_evidence,
-                primary_tool=tool_name,
-                fallback_used=False,
-                resolved=True,
-                attempts=attempts,
-            )
+            # Phase 5: Critique the primary evidence
+            critique = self._critic.execute(sub_question, primary_evidence)
+            if critique.satisfied:
+                return RetrievalResult(
+                    sub_question_id=sub_question.id,
+                    evidence=primary_evidence,
+                    primary_tool=tool_name,
+                    fallback_used=False,
+                    resolved=True,
+                    attempts=attempts,
+                )
 
         # --- Fallback call (at most once) --------------------------------
         fallback_evidence = self._try_search(

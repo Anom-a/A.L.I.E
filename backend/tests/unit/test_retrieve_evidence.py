@@ -12,6 +12,7 @@ from uuid import uuid4
 import pytest
 
 from application.classifiers.keyword_classifier import KeywordSubQuestionClassifier
+from application.use_cases.critique_evidence import CritiqueEvidenceUseCase, CritiqueResult, CritiqueError
 from application.use_cases.retrieve_evidence import (
     FALLBACK_TOOL_NAME,
     RetrievalError,
@@ -58,6 +59,27 @@ class _FakeGateway:
         return self.evidence
 
 
+class _FakeCritic:
+    """A test double for CritiqueEvidenceUseCase."""
+    
+    def __init__(self, satisfied: bool = True, error: Exception | None = None) -> None:
+        self.satisfied = satisfied
+        self.error = error
+        self.call_count = 0
+        self.calls: list[tuple[SubQuestion, list[Evidence]]] = []
+
+    def execute(self, sub_question: SubQuestion, evidence: list[Evidence]) -> CritiqueResult:
+        self.call_count += 1
+        self.calls.append((sub_question, evidence))
+        if self.error is not None:
+            raise self.error
+        return CritiqueResult(
+            satisfied=self.satisfied,
+            reason="fake reason",
+            missing_aspects=[]
+        )
+
+
 def _make_evidence(sub_question_id=None, content="test content") -> Evidence:
     return Evidence(
         sub_question_id=sub_question_id or uuid4(),
@@ -98,6 +120,7 @@ def _build_use_case(
     primary_gateway: _FakeGateway,
     fallback_gateway: _FakeGateway,
     primary_tool: str = "ifixit",
+    critic: _FakeCritic | None = None,
 ) -> RetrieveEvidenceUseCase:
     """Wire a use case with a single primary gateway and a fallback."""
     gateways: dict[str, SearchToolPort] = {
@@ -111,6 +134,7 @@ def _build_use_case(
         router=router,
         gateways=gateways,
         fallback_gateway=fallback_gateway,
+        critic=critic or _FakeCritic(satisfied=True),  # Default satisfies all
         clock=lambda: FIXED_NOW,
     )
 
@@ -119,11 +143,13 @@ def _build_full_use_case(
     router: RouteToolUseCase,
     gateway_map: dict[str, _FakeGateway],
     fallback: _FakeGateway,
+    critic: _FakeCritic | None = None,
 ) -> RetrieveEvidenceUseCase:
     return RetrieveEvidenceUseCase(
         router=router,
         gateways=gateway_map,  # type: ignore[arg-type]
         fallback_gateway=fallback,
+        critic=critic or _FakeCritic(satisfied=True),
         clock=lambda: FIXED_NOW,
     )
 
@@ -286,6 +312,7 @@ def test_missing_gateway_raises_retrieval_error(
         router=router,
         gateways={},  # empty map — no ifixit
         fallback_gateway=fallback,
+        critic=_FakeCritic(satisfied=True),
     )
 
     with pytest.raises(RetrievalError, match="no gateway registered"):
@@ -398,6 +425,7 @@ def test_general_question_routes_to_tavily(router: RouteToolUseCase) -> None:
         router=router,
         gateways={"tavily": tavily},
         fallback_gateway=fallback,
+        critic=_FakeCritic(),
         clock=lambda: FIXED_NOW,
     )
     result = uc.execute(sq)
@@ -464,6 +492,7 @@ def test_routing_failure_raises_retrieval_error(
         router=router,
         gateways={"tavily": fallback},
         fallback_gateway=fallback,
+        critic=_FakeCritic(),
     )
     with pytest.raises(RetrievalError, match="routing failed for sub-question"):
         uc.execute(sq)
@@ -478,6 +507,7 @@ def test_invalid_sub_question_routing_error(
         router=router,
         gateways={},
         fallback_gateway=fallback,
+        critic=_FakeCritic(),
     )
     with pytest.raises(RetrievalError, match="execute\\(\\) expects a SubQuestion"):
         uc.execute("not a SubQuestion")  # type: ignore[arg-type]
@@ -500,6 +530,7 @@ def test_default_clock_produces_utc_timestamps(
         router=router,
         gateways={"ifixit": primary, "tavily": fallback},
         fallback_gateway=fallback,
+        critic=_FakeCritic(),
     )
     result = uc.execute(sq)
     assert result.attempts[0].timestamp.tzinfo is not None
@@ -545,3 +576,86 @@ def test_retrieve_evidence_has_no_forbidden_imports() -> None:
             assert name not in imp.lower(), (
                 f"Forbidden import {name!r} found in retrieve_evidence.py: {imp}"
             )
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Critic behavior
+# ---------------------------------------------------------------------------
+
+def test_primary_succeeds_critic_unsatisfied_fallback_succeeds(router: RouteToolUseCase) -> None:
+    sq = _sq("How to repair an iPhone screen?")
+    ev1 = _make_evidence(sub_question_id=sq.id, content="primary evidence")
+    ev2 = _make_evidence(sub_question_id=sq.id, content="fallback evidence")
+    
+    primary = _FakeGateway(evidence=[ev1])
+    fallback = _FakeGateway(evidence=[ev2])
+    critic = _FakeCritic(satisfied=False)
+
+    result = _build_use_case(router, primary, fallback, critic=critic).execute(sq)
+
+    assert primary.call_count == 1
+    assert critic.call_count == 1
+    assert fallback.call_count == 1
+    assert result.fallback_used is True
+    assert result.resolved is True
+    assert result.evidence == [ev2]
+
+
+def test_primary_succeeds_critic_unsatisfied_fallback_fails(router: RouteToolUseCase) -> None:
+    sq = _sq("How to repair an iPhone screen?")
+    ev1 = _make_evidence(sub_question_id=sq.id, content="primary evidence")
+    
+    primary = _FakeGateway(evidence=[ev1])
+    fallback = _FakeGateway(error=RuntimeError("fallback down"))
+    critic = _FakeCritic(satisfied=False)
+
+    result = _build_use_case(router, primary, fallback, critic=critic).execute(sq)
+
+    assert primary.call_count == 1
+    assert critic.call_count == 1
+    assert fallback.call_count == 1
+    assert result.fallback_used is True
+    assert result.resolved is False
+    assert result.evidence == []
+
+
+def test_primary_empty_critic_not_called(router: RouteToolUseCase) -> None:
+    sq = _sq("How to repair an iPhone screen?")
+    fallback_ev = _make_evidence(sub_question_id=sq.id)
+    
+    primary = _FakeGateway(evidence=[])
+    fallback = _FakeGateway(evidence=[fallback_ev])
+    critic = _FakeCritic(satisfied=True)
+
+    result = _build_use_case(router, primary, fallback, critic=critic).execute(sq)
+
+    assert primary.call_count == 1
+    assert critic.call_count == 0
+    assert fallback.call_count == 1
+
+
+def test_primary_fails_critic_not_called(router: RouteToolUseCase) -> None:
+    sq = _sq("How to repair an iPhone screen?")
+    fallback_ev = _make_evidence(sub_question_id=sq.id)
+    
+    primary = _FakeGateway(error=RuntimeError("primary down"))
+    fallback = _FakeGateway(evidence=[fallback_ev])
+    critic = _FakeCritic(satisfied=True)
+
+    result = _build_use_case(router, primary, fallback, critic=critic).execute(sq)
+
+    assert primary.call_count == 1
+    assert critic.call_count == 0
+    assert fallback.call_count == 1
+
+
+def test_critic_failure_raises_critique_error(router: RouteToolUseCase) -> None:
+    sq = _sq("How to repair an iPhone screen?")
+    ev = _make_evidence(sub_question_id=sq.id)
+    
+    primary = _FakeGateway(evidence=[ev])
+    fallback = _FakeGateway()
+    critic = _FakeCritic(error=CritiqueError("LLM offline"))
+
+    with pytest.raises(CritiqueError, match="LLM offline"):
+        _build_use_case(router, primary, fallback, critic=critic).execute(sq)
