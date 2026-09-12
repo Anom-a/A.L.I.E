@@ -10,7 +10,7 @@ from domain.entities.report import Report, ReportSection
 from domain.entities.citation import Citation
 from application.use_cases.run_research import ExtendedJobRepositoryPort
 from infrastructure.db.models import ResearchJob
-from infrastructure.db.database import SessionLocal
+from infrastructure.db import database
 
 class SQLJobRepository(ExtendedJobRepositoryPort):
     def __init__(self, user_id: Optional[UUID] = None):
@@ -18,7 +18,7 @@ class SQLJobRepository(ExtendedJobRepositoryPort):
         # We use a fresh session for each operation to support background tasks safely
     
     def _get_session(self) -> Session:
-        return SessionLocal()
+        return database.SessionLocal()
 
     def add(self, query: ResearchQuery) -> None:
         if not self.user_id:
