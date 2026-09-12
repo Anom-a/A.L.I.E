@@ -140,10 +140,20 @@ def _validate_response(response: Any) -> CritiqueResult:
     if _SATISFIED_KEY not in response and "evidence_critique" in response:
         if isinstance(response["evidence_critique"], Mapping):
             response = response["evidence_critique"]
+            
+    # Unwrap if the LLM nested the response under "properties" (common JSON schema hallucination)
+    if _SATISFIED_KEY not in response and "properties" in response:
+        if isinstance(response["properties"], Mapping):
+            response = response["properties"]
+            
+    # Handle common hallucinations where the LLM renames the key
+    if _SATISFIED_KEY not in response and "is_satisfied" in response:
+        response = dict(response)
+        response[_SATISFIED_KEY] = response["is_satisfied"]
 
     # Validate satisfied
     if _SATISFIED_KEY not in response:
-        raise CritiqueError(f"missing key: {_SATISFIED_KEY}")
+        raise CritiqueError(f"missing key: {_SATISFIED_KEY} in response: {response}")
     satisfied = response[_SATISFIED_KEY]
     if not isinstance(satisfied, bool):
         raise CritiqueError(f"{_SATISFIED_KEY} must be a bool, got {type(satisfied).__name__}")
