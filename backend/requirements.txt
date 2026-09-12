@@ -16,3 +16,5 @@ python-dotenv
 pytest
 pytest-cov
 fastapi[standard]
+langgraph
+langchain-core
