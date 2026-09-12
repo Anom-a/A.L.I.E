@@ -50,6 +50,12 @@ ENV_MAX_RETRIEVAL_LOOPS = "MAX_RETRIEVAL_LOOPS"
 #: Fallback when ``MAX_RETRIEVAL_LOOPS`` is not set.
 DEFAULT_MAX_RETRIEVAL_LOOPS: int = 3
 
+ENV_DATABASE_URL = "DATABASE_URL"
+ENV_JWT_SECRET_KEY = "JWT_SECRET_KEY"
+ENV_JWT_ALGORITHM = "JWT_ALGORITHM"
+ENV_JWT_ACCESS_TOKEN_EXPIRE_MINUTES = "JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
+ENV_ALLOWED_ORIGINS = "ALLOWED_ORIGINS"
+
 
 class ConfigError(RuntimeError):
     """Raised when required configuration is missing or malformed.
@@ -119,6 +125,26 @@ class RetryConfig:
 
 
 @dataclass(frozen=True)
+class DatabaseConfig:
+    """Configuration for the PostgreSQL connection."""
+    url: str
+
+
+@dataclass(frozen=True)
+class AuthConfig:
+    """Configuration for JWT authentication."""
+    secret_key: str
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+
+
+@dataclass(frozen=True)
+class CorsConfig:
+    """Configuration for CORS."""
+    allowed_origins: list[str]
+
+
+@dataclass(frozen=True)
 class AppConfig:
     """All configuration the process needs so far."""
 
@@ -126,6 +152,9 @@ class AppConfig:
     search: SearchConfig
     semantic_scholar: SemanticScholarConfig
     news_api: NewsApiConfig
+    db: DatabaseConfig
+    auth: AuthConfig
+    cors: CorsConfig
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
@@ -319,6 +348,32 @@ def load_retry_config(env: Optional[Mapping[str, str]] = None) -> RetryConfig:
     )
 
 
+def load_database_config(env: Optional[Mapping[str, str]] = None) -> DatabaseConfig:
+    source = _source(env)
+    return DatabaseConfig(
+        url=_required(source, ENV_DATABASE_URL),
+    )
+
+
+def load_auth_config(env: Optional[Mapping[str, str]] = None) -> AuthConfig:
+    source = _source(env)
+    return AuthConfig(
+        secret_key=_required(source, ENV_JWT_SECRET_KEY),
+        algorithm=_optional(source, ENV_JWT_ALGORITHM) or "HS256",
+        access_token_expire_minutes=_int_value(source, ENV_JWT_ACCESS_TOKEN_EXPIRE_MINUTES, 30),
+    )
+
+
+def load_cors_config(env: Optional[Mapping[str, str]] = None) -> CorsConfig:
+    source = _source(env)
+    origins_str = _optional(source, ENV_ALLOWED_ORIGINS)
+    if origins_str:
+        origins = [origin.strip() for origin in origins_str.split(",") if origin.strip()]
+    else:
+        origins = ["*"]
+    return CorsConfig(allowed_origins=origins)
+
+
 def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
     """Build the full :class:`AppConfig`; raises :class:`ConfigError` if incomplete."""
     source = _source(env)
@@ -327,6 +382,9 @@ def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
         search=load_search_config(source),
         semantic_scholar=load_semantic_scholar_config(source),
         news_api=load_news_api_config(source),
+        db=load_database_config(source),
+        auth=load_auth_config(source),
+        cors=load_cors_config(source),
         planner=load_planner_config(source),
         graph=load_graph_config(source),
         retry=load_retry_config(source),

@@ -280,7 +280,7 @@ function StatusTerminal({ lines }: { lines: StatusLine[] }) {
           className="inline-block w-2 h-4 ml-4"
           style={{ background: 'rgba(6,182,212,0.7)' }}
           animate={{ opacity: [1, 0] }}
-          transition={{ duration: 0.8, repeat: Infinity, ease: 'steps(2)' }}
+          transition={{ duration: 0.8, repeat: Infinity, ease: 'steps(2)' as any }}
         />
       </div>
     </div>

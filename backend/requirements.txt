@@ -12,6 +12,13 @@ tavily-python
 # --- Configuration ---
 python-dotenv
 
+# --- Database & Auth ---
+sqlalchemy
+psycopg2-binary
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+
 # --- Dev / test ---
 pytest
 pytest-cov
