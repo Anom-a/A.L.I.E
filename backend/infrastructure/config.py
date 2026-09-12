@@ -21,8 +21,17 @@ from typing import Mapping, Optional
 
 from dotenv import load_dotenv
 
+ENV_MAX_HTTP_RETRIES = "MAX_HTTP_RETRIES"
+ENV_RETRY_BACKOFF_SECONDS = "RETRY_BACKOFF_SECONDS"
+ENV_MAX_RETRY_BACKOFF_SECONDS = "MAX_RETRY_BACKOFF_SECONDS"
+ENV_RATE_LIMIT_BACKOFF_SECONDS = "RATE_LIMIT_BACKOFF_SECONDS"
+
 #: Fallback when ``REQUEST_TIMEOUT_SECONDS`` is not set.
 DEFAULT_REQUEST_TIMEOUT_SECONDS: float = 20.0
+DEFAULT_MAX_HTTP_RETRIES: int = 2
+DEFAULT_RETRY_BACKOFF_SECONDS: float = 0.5
+DEFAULT_MAX_RETRY_BACKOFF_SECONDS: float = 4.0
+DEFAULT_RATE_LIMIT_BACKOFF_SECONDS: float = 2.0
 
 #: Fallback when ``MAX_SUBQUESTIONS`` is not set.
 DEFAULT_MAX_SUBQUESTIONS: int = 5
@@ -100,6 +109,16 @@ class GraphConfig:
 
 
 @dataclass(frozen=True)
+class RetryConfig:
+    """Everything needed for HTTP retry behavior."""
+    
+    max_http_retries: int = DEFAULT_MAX_HTTP_RETRIES
+    retry_backoff_seconds: float = DEFAULT_RETRY_BACKOFF_SECONDS
+    max_retry_backoff_seconds: float = DEFAULT_MAX_RETRY_BACKOFF_SECONDS
+    rate_limit_backoff_seconds: float = DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+
+
+@dataclass(frozen=True)
 class AppConfig:
     """All configuration the process needs so far."""
 
@@ -109,6 +128,7 @@ class AppConfig:
     news_api: NewsApiConfig
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
+    retry: RetryConfig = field(default_factory=RetryConfig)
 
 
 def load_env_file(path: Optional[str] = None) -> None:
@@ -251,6 +271,54 @@ def load_graph_config(env: Optional[Mapping[str, str]] = None) -> GraphConfig:
     return GraphConfig(max_retrieval_loops=_max_retrieval_loops(source))
 
 
+def _float_value(env: Mapping[str, str], name: str, default: float) -> float:
+    raw = _optional(env, name)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be a number, got {raw!r}") from exc
+    if value < 0:
+        raise ConfigError(f"{name} must be at least 0, got {value}")
+    return value
+
+def _int_value(env: Mapping[str, str], name: str, default: int, min_val: int = 0) -> int:
+    raw = _optional(env, name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be an integer, got {raw!r}") from exc
+    if value < min_val:
+        raise ConfigError(f"{name} must be at least {min_val}, got {value}")
+    return value
+
+
+def load_retry_config(env: Optional[Mapping[str, str]] = None) -> RetryConfig:
+    """Build :class:`RetryConfig` from ``env``."""
+    source = _source(env)
+    
+    max_retries = _int_value(source, ENV_MAX_HTTP_RETRIES, DEFAULT_MAX_HTTP_RETRIES)
+    backoff = _float_value(source, ENV_RETRY_BACKOFF_SECONDS, DEFAULT_RETRY_BACKOFF_SECONDS)
+    max_backoff = _float_value(source, ENV_MAX_RETRY_BACKOFF_SECONDS, DEFAULT_MAX_RETRY_BACKOFF_SECONDS)
+    rate_limit_backoff = _float_value(source, ENV_RATE_LIMIT_BACKOFF_SECONDS, DEFAULT_RATE_LIMIT_BACKOFF_SECONDS)
+    
+    if max_backoff < backoff:
+        raise ConfigError(
+            f"{ENV_MAX_RETRY_BACKOFF_SECONDS} ({max_backoff}) must be >= "
+            f"{ENV_RETRY_BACKOFF_SECONDS} ({backoff})"
+        )
+        
+    return RetryConfig(
+        max_http_retries=max_retries,
+        retry_backoff_seconds=backoff,
+        max_retry_backoff_seconds=max_backoff,
+        rate_limit_backoff_seconds=rate_limit_backoff,
+    )
+
+
 def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
     """Build the full :class:`AppConfig`; raises :class:`ConfigError` if incomplete."""
     source = _source(env)
@@ -261,4 +329,5 @@ def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
         news_api=load_news_api_config(source),
         planner=load_planner_config(source),
         graph=load_graph_config(source),
+        retry=load_retry_config(source),
     )

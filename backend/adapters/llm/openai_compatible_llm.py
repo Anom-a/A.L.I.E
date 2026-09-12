@@ -14,6 +14,9 @@ from typing import Any, Mapping, Optional
 
 from openai import OpenAI
 
+from adapters.retry_policy import with_retries
+from infrastructure.config import RetryConfig
+
 #: Used when the caller does not supply a timeout.
 DEFAULT_TIMEOUT_SECONDS: float = 20.0
 
@@ -48,6 +51,7 @@ class OpenAICompatibleLLM:
         model: str,
         base_url: Optional[str] = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        retry_config: Optional[RetryConfig] = None,
         client: Optional[Any] = None,
     ) -> None:
         """Configure the adapter.
@@ -69,6 +73,7 @@ class OpenAICompatibleLLM:
 
         self._model = model
         self._timeout_seconds = float(timeout_seconds)
+        self._retry_config = retry_config or RetryConfig()
         # The key is handed straight to the client and never stored on self.
         self._client = (
             client
@@ -122,13 +127,22 @@ class OpenAICompatibleLLM:
         """Issue one chat-completion request, wrapping any provider failure."""
         if not isinstance(prompt, str) or not prompt.strip():
             raise LLMAdapterError("prompt must be a non-empty string")
-        try:
+            
+        @with_retries(
+            config=self._retry_config,
+            operation_name="chat_completion",
+            tool="openai",
+        )
+        def _do_create():
             return self._client.chat.completions.create(
                 model=self._model,
                 messages=[{"role": "user", "content": prompt}],
                 timeout=self._timeout_seconds,
                 **extra,
             )
+            
+        try:
+            return _do_create()
         except Exception as exc:  # noqa: BLE001 - deliberate boundary
             # Broad on purpose: this is the translation boundary. Whatever the
             # SDK or transport raises, callers only ever see LLMAdapterError.

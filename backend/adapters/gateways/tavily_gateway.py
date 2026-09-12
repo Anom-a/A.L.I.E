@@ -24,6 +24,8 @@ from domain.entities.citation import Citation
 from domain.entities.evidence import Evidence, SourceType
 from domain.entities.sub_question import SubQuestion
 from domain.ports.search_tool_port import SearchToolPort
+from adapters.retry_policy import with_retries
+from infrastructure.config import RetryConfig
 
 #: Used when the caller does not supply a timeout.
 DEFAULT_TIMEOUT_SECONDS: float = 20.0
@@ -44,6 +46,7 @@ class TavilyGateway:
         api_key: str,
         max_results: int = DEFAULT_MAX_RESULTS,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        retry_config: Optional[RetryConfig] = None,
         client: Optional[Any] = None,
         clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
@@ -67,6 +70,7 @@ class TavilyGateway:
         self._max_results = int(max_results)
         self._timeout_seconds = float(timeout_seconds)
         self._clock = clock if clock is not None else _utc_now
+        self._retry_config = retry_config or RetryConfig()
         # The key is handed straight to the client and never stored on self.
         self._client = client if client is not None else TavilyClient(api_key=api_key)
 
@@ -76,17 +80,27 @@ class TavilyGateway:
             raise SearchGatewayError(
                 f"search() expects a SubQuestion, got {type(sub_question).__name__}"
             )
-        payload = self._request(sub_question.text)
+        payload = self._request(sub_question)
         return self._to_evidence(sub_question, payload)
 
-    def _request(self, query: str) -> Any:
+    def _request(self, sub_question: SubQuestion) -> Any:
         """Issue the single search request, wrapping any provider failure."""
-        try:
+        @with_retries(
+            config=self._retry_config,
+            operation_name="search",
+            job_id=str(sub_question.research_query_id),
+            sub_question_id=str(sub_question.id),
+            tool="tavily",
+        )
+        def _do_search():
             return self._client.search(
-                query=query,
+                query=sub_question.text,
                 max_results=self._max_results,
                 timeout=self._timeout_seconds,
             )
+
+        try:
+            return _do_search()
         except Exception as exc:  # noqa: BLE001 - deliberate boundary
             # Broad on purpose: this is the translation boundary. Whatever the
             # SDK or transport raises, callers only ever see SearchGatewayError.

@@ -16,6 +16,8 @@ import httpx
 from domain.entities.citation import Citation
 from domain.entities.evidence import Evidence, SourceType
 from domain.entities.sub_question import SubQuestion
+from adapters.retry_policy import with_retries
+from infrastructure.config import RetryConfig
 
 from adapters.exceptions import SearchGatewayError
 
@@ -41,6 +43,7 @@ class NewsApiGateway:
         base_url: str = DEFAULT_BASE_URL,
         max_results: int = DEFAULT_MAX_RESULTS,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        retry_config: Optional[RetryConfig] = None,
         client: Optional[httpx.Client] = None,
         clock: Optional[Callable[[], datetime]] = None,
     ) -> None:
@@ -69,6 +72,7 @@ class NewsApiGateway:
         self._max_results = int(max_results)
         self._timeout_seconds = float(timeout_seconds)
         self._clock = clock if clock is not None else _utc_now
+        self._retry_config = retry_config or RetryConfig()
 
         self._client = client if client is not None else httpx.Client(
             headers={"X-Api-Key": self._api_key},
@@ -81,17 +85,24 @@ class NewsApiGateway:
             raise SearchGatewayError(
                 f"search() expects a SubQuestion, got {type(sub_question).__name__}"
             )
-        payload = self._request(sub_question.text)
+        payload = self._request(sub_question)
         return self._to_evidence(sub_question, payload)
 
-    def _request(self, query: str) -> Any:
+    def _request(self, sub_question: SubQuestion) -> Any:
         """Issue the single search request, wrapping any provider failure."""
-        try:
+        @with_retries(
+            config=self._retry_config,
+            operation_name="search",
+            job_id=str(sub_question.research_query_id),
+            sub_question_id=str(sub_question.id),
+            tool="news_api",
+        )
+        def _do_search():
             response = self._client.get(
                 f"{self._base_url}/everything",
                 headers={"X-Api-Key": self._api_key},
                 params={
-                    "q": query,
+                    "q": sub_question.text,
                     "pageSize": self._max_results,
                     "language": "en",
                     "sortBy": "relevancy",
@@ -99,6 +110,9 @@ class NewsApiGateway:
             )
             response.raise_for_status()
             return response.json()
+
+        try:
+            return _do_search()
         except Exception as exc:  # noqa: BLE001 - deliberate boundary
             raise SearchGatewayError(
                 f"NewsAPI search failed: {type(exc).__name__}: {exc}"

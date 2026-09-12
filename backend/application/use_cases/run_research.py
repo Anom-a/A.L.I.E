@@ -32,6 +32,10 @@ class ExtendedJobRepositoryPort(Protocol):
         ...
 
 
+import logging
+
+logger = logging.getLogger("application")
+
 class RunResearchUseCase:
     """Executes the research graph and tracks lifecycle state."""
 
@@ -51,13 +55,24 @@ class RunResearchUseCase:
         """
         query = self._repository.get(query_id)
         if not query:
+            logger.warning("Research job not found", extra={"job_id": str(query_id)})
             return  # Job was not found, nothing to run
 
         try:
+            logger.info("Research job started", extra={"job_id": str(query_id)})
             self._repository.update_status(query_id, ResearchStatus.RUNNING)
+            
             report = self._graph.invoke(query)
+            
+            logger.info("Report completed", extra={"job_id": str(query_id)})
             self._repository.save_report(query_id, report)
             self._repository.update_status(query_id, ResearchStatus.DONE)
+            
         except Exception as exc:
-            self._repository.save_error(query_id, str(exc))
+            # Preserve stack trace internally, save safe message externally
+            logger.exception(
+                "Research job failed due to an unexpected error",
+                extra={"job_id": str(query_id)}
+            )
+            self._repository.save_error(query_id, "Research failed due to an unexpected internal error.")
             self._repository.update_status(query_id, ResearchStatus.FAILED)

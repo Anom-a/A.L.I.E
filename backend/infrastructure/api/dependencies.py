@@ -43,6 +43,7 @@ def get_llm_port(config: Annotated[AppConfig, Depends(get_config)]) -> LLMPort:
         model=config.llm.model,
         base_url=config.llm.base_url,
         timeout_seconds=config.llm.timeout_seconds,
+        retry_config=config.retry,
     )
 
 
@@ -51,6 +52,7 @@ def get_search_port(config: Annotated[AppConfig, Depends(get_config)]) -> Search
     return TavilyGateway(
         api_key=config.search.api_key,
         timeout_seconds=config.search.timeout_seconds,
+        retry_config=config.retry,
     )
 
 
@@ -77,15 +79,19 @@ def get_research_graph(
     synth = SynthesizeReportUseCase(llm=llm)
     
     # We instantiate iFixit here as fallback; no API key needed
-    ifixit = IFixitGateway()
+    ifixit = IFixitGateway(
+        retry_config=config.retry,
+    )
     semantic_scholar = SemanticScholarGateway(
         api_key=config.semantic_scholar.api_key,
         timeout_seconds=config.semantic_scholar.timeout_seconds,
+        retry_config=config.retry,
     )
     news_api = NewsApiGateway(
         api_key=config.news_api.api_key,
         base_url=config.news_api.base_url,
         timeout_seconds=config.news_api.timeout_seconds,
+        retry_config=config.retry,
     )
     
     return ResearchGraph(

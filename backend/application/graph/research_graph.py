@@ -23,6 +23,9 @@ from domain.entities.research_query import ResearchQuery
 from domain.entities.sub_question import SubQuestion
 from domain.entities.tool_call_attempt import ToolCallAttempt
 from domain.ports.search_tool_port import SearchToolPort
+import logging
+
+logger = logging.getLogger("application")
 
 
 def _merge_dicts(left: dict | None, right: dict) -> dict:
@@ -134,6 +137,14 @@ class ResearchGraph:
 
         def route_tool_node(state: SubQuestionState) -> dict:
             routed = self._router.execute(state["sub_question"])
+            logger.info(
+                "Routing decision",
+                extra={
+                    "job_id": str(state["sub_question"].research_query_id),
+                    "sub_question_id": str(state["sub_question"].id),
+                    "tool": routed.tool_name,
+                },
+            )
             return {"tool_name": routed.tool_name}
 
         def retrieve_evidence_node(state: SubQuestionState) -> dict:
@@ -147,6 +158,15 @@ class ResearchGraph:
                 critic=bypass_critic,
             )
             result = uc.execute(state["sub_question"])
+            logger.info(
+                "Primary retrieval result",
+                extra={
+                    "job_id": str(state["sub_question"].research_query_id),
+                    "sub_question_id": str(state["sub_question"].id),
+                    "resolved": result.resolved,
+                    "evidence_count": len(result.evidence),
+                },
+            )
             return {
                 "evidence": result.evidence,
                 "attempts": result.attempts,
@@ -162,6 +182,15 @@ class ResearchGraph:
                 )
             else:
                 critique = self._critic.execute(state["sub_question"], state["evidence"])
+            
+            logger.info(
+                "Critic verdict",
+                extra={
+                    "job_id": str(state["sub_question"].research_query_id),
+                    "sub_question_id": str(state["sub_question"].id),
+                    "satisfied": critique.satisfied,
+                },
+            )
             return {"critique": critique}
 
         def retrieve_evidence_fallback_node(state: SubQuestionState) -> dict:
@@ -175,6 +204,15 @@ class ResearchGraph:
                 fallback_gateway=_NullGateway(),
                 critic=bypass_critic,
             )
+            
+            logger.info(
+                "Fallback triggered",
+                extra={
+                    "job_id": str(state["sub_question"].research_query_id),
+                    "sub_question_id": str(state["sub_question"].id),
+                },
+            )
+            
             result = uc.execute(state["sub_question"])
             # Update state with new evidence and attempts, replacing old evidence
             attempts = state.get("attempts", []) + result.attempts
@@ -224,6 +262,15 @@ class ResearchGraph:
                 topic = f"{topic}\n\nFocus on these unresolved gaps:\n{gaps_text}"
             
             new_sqs = self._planner.execute(topic, state["research_query"].id)
+            
+            logger.info(
+                "Planning completed",
+                extra={
+                    "job_id": str(state["research_query"].id),
+                    "new_questions_count": len(new_sqs),
+                },
+            )
+            
             return {
                 "sub_questions": new_sqs,
                 "new_sub_questions": new_sqs,
@@ -244,6 +291,11 @@ class ResearchGraph:
             all_evidence = []
             for ev_list in state["evidence"].values():
                 all_evidence.extend(ev_list)
+            
+            logger.info(
+                "Synthesis started",
+                extra={"job_id": str(state["research_query"].id)}
+            )
             
             report = self._synthesizer.execute(
                 research_query=state["research_query"],

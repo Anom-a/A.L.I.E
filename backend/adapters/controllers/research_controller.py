@@ -52,6 +52,10 @@ def get_search_port() -> SearchToolPort:
     raise NotImplementedError("Overridden by DI")
 
 
+import logging
+
+logger = logging.getLogger("adapters")
+
 @router.post("/research", response_model=JobStatusResponse, status_code=202)
 def submit_research(
     request: SubmitResearchRequest,
@@ -62,6 +66,8 @@ def submit_research(
     """Submit a new research query and start processing in the background."""
     query = ResearchQuery(topic=request.topic)
     repo.add(query)
+    
+    logger.info("Research job accepted", extra={"job_id": str(query.id)})
     
     # Run the graph synchronously within a background thread so we don't block
     background_tasks.add_task(use_case.execute, query.id)
