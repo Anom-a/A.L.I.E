@@ -41,14 +41,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSubmit, isLoading }) => 
         <button
           type="submit"
           disabled={isLoading || !query.trim()}
-          className="group h-[50px] px-6 rounded-xl bg-transparent border border-[#06B6D4]/80 text-[#06B6D4] font-medium tracking-widest uppercase shadow-[inset_0_0_15px_rgba(6,182,212,0.2),0_0_20px_rgba(6,182,212,0.3)] hover:bg-[#06B6D4]/15 hover:text-white hover:shadow-[inset_0_0_25px_rgba(6,182,212,0.5),0_0_35px_rgba(6,182,212,0.6)] disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 overflow-hidden relative"
+          className="group h-[50px] px-4 sm:px-6 rounded-xl bg-transparent border border-[#06B6D4]/80 text-[#06B6D4] font-medium tracking-widest uppercase shadow-[inset_0_0_15px_rgba(6,182,212,0.2),0_0_20px_rgba(6,182,212,0.3)] hover:bg-[#06B6D4]/15 hover:text-white hover:shadow-[inset_0_0_25px_rgba(6,182,212,0.5),0_0_35px_rgba(6,182,212,0.6)] disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2 overflow-hidden relative flex-shrink-0"
         >
           {isLoading ? (
             <span className="material-symbols-outlined animate-spin text-[20px] drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">refresh</span>
           ) : (
             <span className="material-symbols-outlined text-[20px] drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">send</span>
           )}
-          <span className="relative z-10 drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]">Start Research</span>
+          <span className="hidden sm:inline relative z-10 drop-shadow-[0_0_5px_rgba(6,182,212,0.8)] whitespace-nowrap">Start Research</span>
         </button>
       </form>
     </div>

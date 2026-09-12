@@ -24,13 +24,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isLoading }) =
     <div className="flex-1 w-full max-w-5xl mx-auto overflow-y-auto px-4 py-8 space-y-8 scrollbar-hide z-10 flex flex-col pt-12">
       {messages.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center text-center m-auto pb-32 w-full max-w-lg relative">
-          <div className="h-64 w-full mb-8 relative z-10">
+          <div className="h-48 sm:h-64 w-full mb-6 sm:mb-8 relative z-10">
             <Core3D />
           </div>
-          <h2 className="text-5xl font-headline-xl font-bold tracking-tight text-white mb-3 drop-shadow-[0_0_25px_rgba(61,139,255,0.8)] relative z-10" style={{ textShadow: '0 0 15px rgba(6,182,212,0.6)' }}>
+          <h2 className="text-4xl sm:text-5xl font-headline-xl font-bold tracking-tight text-white mb-2 sm:mb-3 drop-shadow-[0_0_25px_rgba(61,139,255,0.8)] relative z-10" style={{ textShadow: '0 0 15px rgba(6,182,212,0.6)' }}>
             A.L.I.E.
           </h2>
-          <p className="font-label-md text-label-md uppercase tracking-[0.3em] text-accent-glow font-medium drop-shadow-[0_0_10px_rgba(61,139,255,0.5)] relative z-10">
+          <p className="font-label-md text-label-md uppercase tracking-[0.15em] sm:tracking-[0.3em] text-accent-glow font-medium drop-shadow-[0_0_10px_rgba(61,139,255,0.5)] relative z-10 px-2 text-center leading-relaxed">
             Advanced Lucent Intelligence Emulator
           </p>
           
