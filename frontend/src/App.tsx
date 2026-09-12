@@ -2,12 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { ChatInput } from './components/ChatInput';
 import { ChatWindow } from './components/ChatWindow';
 import { JobStatusResponse, ChatMessage } from './types';
+import AntigravityLoader from './components/AntigravityLoader';
 
 export default function App() {
+  const [isInitializing, setIsInitializing] = useState(true);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const pollInterval = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Simulate initial A.L.I.E. loading sequence (matches loader's online status)
+    const timer = setTimeout(() => setIsInitializing(false), 9500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const startResearch = async (topic: string) => {
     const userMessage: ChatMessage = {
@@ -120,6 +128,10 @@ export default function App() {
       if (pollInterval.current) window.clearInterval(pollInterval.current);
     };
   }, [activeJobId, messages]);
+
+  if (isInitializing) {
+    return <AntigravityLoader />;
+  }
 
   return (
     <div className="flex flex-col h-screen bg-canvas-base text-on-surface overflow-hidden relative">
