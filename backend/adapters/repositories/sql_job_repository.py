@@ -60,7 +60,11 @@ class SQLJobRepository(ExtendedJobRepositoryPort):
             if job:
                 # Serialize report to JSON dict
                 sections_data = [asdict(s) for s in report.sections]
-                citations_data = [asdict(c) for c in report.citations]
+                citations_data = []
+                for c in report.citations:
+                    c_dict = asdict(c)
+                    c_dict["retrieved_at"] = c_dict["retrieved_at"].isoformat()
+                    citations_data.append(c_dict)
                 
                 report_dict = {
                     "query_id": str(report.query_id),
@@ -81,8 +85,12 @@ class SQLJobRepository(ExtendedJobRepositoryPort):
             
             # Deserialize
             sections = [ReportSection(**s) for s in data["sections"]]
-            citations = [Citation(**c) for c in data["citations"]]
             from datetime import datetime
+            citations = []
+            for c in data["citations"]:
+                if isinstance(c.get("retrieved_at"), str):
+                    c["retrieved_at"] = datetime.fromisoformat(c["retrieved_at"])
+                citations.append(Citation(**c))
             generated_at = datetime.fromisoformat(data["generated_at"])
             
             return Report(
