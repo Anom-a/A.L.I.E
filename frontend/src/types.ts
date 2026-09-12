@@ -20,7 +20,7 @@ export interface SourceItem {
   reportId?: string;
 }
 
-export type ResearchStatus = 'PENDING' | 'ROUTING' | 'RETRIEVING' | 'CRITIQUING' | 'SYNTHESIZING' | 'DONE' | 'FAILED';
+export type ResearchStatus = 'pending' | 'running' | 'done' | 'failed';
 
 export interface CitationDTO {
   source_url_or_id: string;

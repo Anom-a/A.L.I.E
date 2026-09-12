@@ -85,7 +85,17 @@ Instructions:
 - Do NOT invent or fabricate citations. Every citation must be a provided [CIT-N].
 - Do NOT create source URLs.
 - If there are unresolved gaps, you may acknowledge them, but do not invent evidence for them.
-- Return ONLY a JSON object matching the requested schema.
+- Return ONLY a JSON object shaped exactly like this:
+{{
+  "title": "Report Title",
+  "sections": [
+    {{
+      "title": "Section Title",
+      "content": "Section content...",
+      "citation_ids": ["CIT-001", "CIT-002"]
+    }}
+  ]
+}}
 """
 
 

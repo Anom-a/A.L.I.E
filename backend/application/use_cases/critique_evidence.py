@@ -74,7 +74,12 @@ Instructions:
 - Do not invent facts not present in the evidence.
 - Acknowledge that the evidence may be spread across multiple excerpts.
 - If the evidence does not fully answer the question, specify exactly what is missing.
-- Return ONLY a JSON object matching the requested schema.
+- Return ONLY a JSON object shaped exactly like this:
+{{
+  "satisfied": true,
+  "reason": "explanation...",
+  "missing_aspects": ["aspect 1", "aspect 2"]
+}}
 """
 
 

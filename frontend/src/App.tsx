@@ -20,7 +20,7 @@ export default function App() {
       id: (Date.now() + 1).toString(),
       role: 'assistant',
       content: '', // Empty initially, will show loading
-      status: 'PENDING',
+      status: 'pending',
     };
 
     setMessages(prev => [...prev, userMessage, assistantMessage]);
@@ -49,7 +49,7 @@ export default function App() {
     } catch (err: any) {
       setMessages(prev => prev.map(msg => 
         msg.id === assistantMessage.id 
-          ? { ...msg, status: 'FAILED', error: err.message } 
+          ? { ...msg, status: 'failed', error: err.message } 
           : msg
       ));
       setIsLoading(false);
@@ -63,13 +63,13 @@ export default function App() {
     const assistantMessage = messages.find(m => m.role === 'assistant' && (m as any).jobId === activeJobId);
     if (!assistantMessage) return;
 
-    if (assistantMessage.status === 'DONE' || assistantMessage.status === 'FAILED') {
+    if (assistantMessage.status === 'done' || assistantMessage.status === 'failed') {
       if (pollInterval.current) {
         window.clearInterval(pollInterval.current);
         pollInterval.current = null;
       }
       
-      if (assistantMessage.status === 'DONE' && !assistantMessage.report) {
+      if (assistantMessage.status === 'done' && !assistantMessage.report) {
         // Fetch report
         fetch(`/api/research/${activeJobId}/report`)
           .then(res => res.json())
@@ -85,13 +85,13 @@ export default function App() {
           .catch(err => {
             setMessages(prev => prev.map(msg => 
               msg.id === assistantMessage.id 
-                ? { ...msg, error: 'Failed to fetch report', status: 'FAILED' } 
+                ? { ...msg, error: 'Failed to fetch report', status: 'failed' } 
                 : msg
             ));
             setIsLoading(false);
             setActiveJobId(null);
           });
-      } else if (assistantMessage.status === 'FAILED') {
+      } else if (assistantMessage.status === 'failed') {
         setIsLoading(false);
         setActiveJobId(null);
       }

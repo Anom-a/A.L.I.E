@@ -111,11 +111,23 @@ class OpenAICompatibleLLM:
             },
         )
         text = self._text_of(response)
+        # Strip markdown fences if the model included them
+        clean_text = text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:]
+        elif clean_text.startswith("```"):
+            clean_text = clean_text[3:]
+        if clean_text.endswith("```"):
+            clean_text = clean_text[:-3]
+        clean_text = clean_text.strip()
+        
         try:
-            data = json.loads(text)
+            data = json.loads(clean_text)
         except ValueError as exc:
+            import logging
+            logging.getLogger("application").error(f"LLM structured response was not valid JSON. Response text: {text!r}")
             raise LLMAdapterError(
-                "LLM structured response was not valid JSON"
+                f"LLM structured response was not valid JSON. Response text: {text!r}"
             ) from exc
         if not isinstance(data, dict):
             raise LLMAdapterError(

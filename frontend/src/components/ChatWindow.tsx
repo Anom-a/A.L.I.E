@@ -58,15 +58,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isLoading }) =
               </div>
             )}
 
-            {msg.status && msg.status !== 'DONE' && msg.status !== 'FAILED' && (
+            {msg.status && msg.status !== 'done' && msg.status !== 'failed' && (
               <div className="mt-4 flex items-center gap-3 text-accent-glow animate-pulse">
                 <span className="material-symbols-outlined animate-spin text-[18px]">refresh</span>
                 <span className="font-label-sm text-sm tracking-wide">
-                  {msg.status === 'PENDING' && 'Initializing Research...'}
-                  {msg.status === 'ROUTING' && 'Routing Query...'}
-                  {msg.status === 'RETRIEVING' && 'Retrieving Evidence...'}
-                  {msg.status === 'CRITIQUING' && 'Critiquing Findings...'}
-                  {msg.status === 'SYNTHESIZING' && 'Synthesizing Final Report...'}
+                  {msg.status === 'pending' && 'Initializing Research...'}
+                  {msg.status === 'running' && 'Researching...'}
                 </span>
               </div>
             )}
