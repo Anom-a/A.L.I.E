@@ -9,6 +9,10 @@ from pydantic import BaseModel, Field
 from domain.entities.research_query import ResearchQuery, ResearchStatus
 from adapters.presenters.report_presenter import ReportDTO, ReportPresenter
 from application.use_cases.run_research import RunResearchUseCase, ExtendedJobRepositoryPort
+from adapters.controllers.auth_controller import get_current_user
+from infrastructure.db.models import User, ResearchJob
+from infrastructure.db.database import get_db
+from sqlalchemy.orm import Session
 from domain.ports.llm_port import LLMPort
 from domain.ports.search_tool_port import SearchToolPort
 
@@ -60,10 +64,15 @@ logger = logging.getLogger("adapters")
 def submit_research(
     request: SubmitResearchRequest,
     background_tasks: BackgroundTasks,
+    req: Request,
+    current_user: User = Depends(get_current_user),
     repo: ExtendedJobRepositoryPort = Depends(get_job_repository),
     use_case: RunResearchUseCase = Depends(get_run_research_use_case),
 ):
     """Submit a new research query and start processing in the background."""
+    # Pass user_id to repo manually since Depends(get_job_repository) might not have it in state yet
+    repo.user_id = current_user.id
+
     query = ResearchQuery(topic=request.topic)
     repo.add(query)
     
@@ -78,6 +87,7 @@ def submit_research(
 @router.get("/research/{job_id}", response_model=JobStatusResponse)
 def get_job_status(
     job_id: UUID,
+    current_user: User = Depends(get_current_user),
     repo: ExtendedJobRepositoryPort = Depends(get_job_repository),
 ):
     """Poll the status of a research job."""
@@ -89,9 +99,20 @@ def get_job_status(
     return JobStatusResponse(job_id=query.id, status=query.status, error=error)
 
 
+@router.get("/research", response_model=list[JobStatusResponse])
+def get_user_sessions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all past research jobs for the current user."""
+    jobs = db.query(ResearchJob).filter(ResearchJob.user_id == current_user.id).order_by(ResearchJob.created_at.desc()).all()
+    return [JobStatusResponse(job_id=job.id, status=job.status, error=job.error) for job in jobs]
+
+
 @router.get("/research/{job_id}/report", response_model=ReportDTO)
 def get_job_report(
     job_id: UUID,
+    current_user: User = Depends(get_current_user),
     repo: ExtendedJobRepositoryPort = Depends(get_job_repository),
 ):
     """Fetch the final Report DTO. Returns 404 until status=DONE."""

@@ -16,7 +16,7 @@ from adapters.gateways.tavily_gateway import TavilyGateway
 from adapters.gateways.ifixit_gateway import IFixitGateway
 from adapters.gateways.semantic_scholar_gateway import SemanticScholarGateway
 from adapters.gateways.news_api_gateway import NewsApiGateway
-from adapters.repositories.in_memory_job_repository import InMemoryJobRepository
+from adapters.repositories.sql_job_repository import SQLJobRepository
 from application.classifiers.keyword_classifier import KeywordSubQuestionClassifier
 from application.use_cases.plan_sub_questions import PlanSubQuestionsUseCase
 from application.use_cases.route_tool import RouteToolUseCase
@@ -56,12 +56,13 @@ def get_search_port(config: Annotated[AppConfig, Depends(get_config)]) -> Search
     )
 
 
-@lru_cache(maxsize=1)
-def get_job_repository() -> ExtendedJobRepositoryPort:
-    """Provide a singleton in-memory job repository."""
-    # Since it's in-memory, we want the same instance globally for the lifetime
-    # of the application process.
-    return InMemoryJobRepository()
+def get_job_repository(
+    request: Request
+) -> ExtendedJobRepositoryPort:
+    """Provide a SQL job repository tied to the current user if available."""
+    # We will grab user_id from request.state if it exists
+    user_id = getattr(request.state, "user_id", None)
+    return SQLJobRepository(user_id=user_id)
 
 
 def get_research_graph(
