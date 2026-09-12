@@ -203,6 +203,11 @@ class SynthesizeReportUseCase:
         """Validate LLM output and construct domain Report."""
         if not isinstance(response, Mapping):
             raise SynthesisError(f"response must be a mapping, got {type(response).__name__}")
+
+        # Unwrap if the LLM nested the response under the schema title
+        if _TITLE_KEY not in response and "report_synthesis" in response:
+            if isinstance(response["report_synthesis"], Mapping):
+                response = response["report_synthesis"]
             
         if _TITLE_KEY not in response:
             raise SynthesisError(f"missing key: {_TITLE_KEY}")

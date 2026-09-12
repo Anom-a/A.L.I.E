@@ -103,13 +103,20 @@ class OpenAICompatibleLLM:
         if not isinstance(schema, Mapping) or not schema:
             raise LLMAdapterError("schema must be a non-empty mapping")
 
-        response = self._create(
-            prompt,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {"name": _schema_name(schema), "schema": dict(schema)},
-            },
+        # Many OpenAI-compatible proxies (like Novita) do not support the
+        # structured outputs feature (`response_format={"type": "json_schema"}`).
+        # Therefore, we inject the schema requirement directly into the prompt.
+        augmented_prompt = (
+            f"{prompt}\n\n"
+            f"IMPORTANT: You must return ONLY a JSON object that perfectly matches "
+            f"the following JSON Schema. Do not include any conversational text "
+            f"before or after the JSON.\n"
+            f"CRITICAL: Do NOT wrap the JSON in any root-level keys based on the schema's title. "
+            f"Your output should start immediately with the keys defined in the schema's properties.\n\n"
+            f"{json.dumps(dict(schema), indent=2)}"
         )
+
+        response = self._create(augmented_prompt)
         text = self._text_of(response)
         # Strip markdown fences if the model included them
         clean_text = text.strip()

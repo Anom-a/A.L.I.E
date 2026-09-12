@@ -136,6 +136,11 @@ def _validate_response(response: Any) -> CritiqueResult:
     if not isinstance(response, Mapping):
         raise CritiqueError(f"response must be a mapping, got {type(response).__name__}")
 
+    # Unwrap if the LLM nested the response under the schema title
+    if _SATISFIED_KEY not in response and "evidence_critique" in response:
+        if isinstance(response["evidence_critique"], Mapping):
+            response = response["evidence_critique"]
+
     # Validate satisfied
     if _SATISFIED_KEY not in response:
         raise CritiqueError(f"missing key: {_SATISFIED_KEY}")

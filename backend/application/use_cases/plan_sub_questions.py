@@ -188,6 +188,12 @@ def _planned_texts(response: Any) -> list[str]:
         raise MalformedPlanError(
             f"planning response must be a mapping, got {type(response).__name__}"
         )
+        
+    # Unwrap if the LLM nested the response under the schema title
+    if _SUB_QUESTIONS_KEY not in response and "sub_question_plan" in response:
+        if isinstance(response["sub_question_plan"], Mapping):
+            response = response["sub_question_plan"]
+
     if _SUB_QUESTIONS_KEY not in response:
         raise MalformedPlanError(f"planning response has no {_SUB_QUESTIONS_KEY!r} key")
 
