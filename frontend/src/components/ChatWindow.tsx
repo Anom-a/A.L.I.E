@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { ChatMessage } from '../types';
+import { Core3D } from './Core3D';
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -22,14 +23,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ messages, isLoading }) =
   return (
     <div className="flex-1 w-full max-w-5xl mx-auto overflow-y-auto px-4 py-8 space-y-8 scrollbar-hide z-10 flex flex-col pt-12">
       {messages.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center opacity-60 m-auto pb-32">
-          <img
-            alt="A.L.I.E. Logo"
-            className="h-16 w-16 object-contain drop-shadow-[0_0_12px_rgba(61,139,255,0.6)] mb-6 animate-pulse"
-            src="https://lh3.googleusercontent.com/aida/AEtjO1VFpdCX5P83H3-nNIsGoAFe9DIPuLBX9wNfKLp4JRO0J77OOff0SD_GEg9qD32lL29qh4Ww7cCDy_guT75BXCTm5XjbWaq24IJJ5L73nrT1nD9l7V6kPUbtw-wI0r_evgc_m_H-iupEr_1gDmYnncX0eHjOMal_xoNzvlaxUZoBG7Fid9UNUOVPEM2dDtFUnctvBCYr1hqPkPj1xj4A4kUu5JFLP2B1v3JCvVYyU8Zhu3L_Y9vksRDqqA"
-          />
-          <h2 className="text-3xl font-light text-text-primary mb-2">A.L.I.E.</h2>
-          <p className="text-secondary font-light">Advanced Lucent Intelligence Emulator</p>
+        <div className="flex-1 flex flex-col items-center justify-center text-center m-auto pb-32 w-full max-w-lg relative">
+          <div className="h-64 w-full mb-8 relative z-10">
+            <Core3D />
+          </div>
+          <h2 className="text-5xl font-headline-xl font-bold tracking-tight text-white mb-3 drop-shadow-[0_0_25px_rgba(61,139,255,0.8)] relative z-10" style={{ textShadow: '0 0 15px rgba(6,182,212,0.6)' }}>
+            A.L.I.E.
+          </h2>
+          <p className="font-label-md text-label-md uppercase tracking-[0.3em] text-accent-glow font-medium drop-shadow-[0_0_10px_rgba(61,139,255,0.5)] relative z-10">
+            Advanced Lucent Intelligence Emulator
+          </p>
+          
+          {/* Subtle background flair for empty state */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full rounded-full bg-primary/5 blur-[100px] pointer-events-none z-0"></div>
         </div>
       )}
 
