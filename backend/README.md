@@ -20,7 +20,7 @@ currently at **Phase 2 — Planner Use Case**.
 |-------|-------|-------|
 | **0-6**| Domain, Adapters, Planner, Router, Retrieve, Critique, Synthesize | ✅ done |
 | **7** | LangGraph orchestration (ResearchGraph) | ✅ done |
-| 8+ | API, persistence | ⛔ not started |
+| **8** | API, persistence | ✅ done |
 
 ### Phase 1 scope
 

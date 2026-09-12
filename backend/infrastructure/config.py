@@ -31,6 +31,9 @@ ENV_OPENAI_API_KEY = "OPENAI_API_KEY"
 ENV_OPENAI_BASE_URL = "OPENAI_BASE_URL"
 ENV_OPENAI_MODEL_PLANNER = "OPENAI_MODEL_PLANNER"
 ENV_TAVILY_API_KEY = "TAVILY_API_KEY"
+ENV_SEMANTIC_SCHOLAR_API_KEY = "SEMANTIC_SCHOLAR_API_KEY"
+ENV_NEWS_API_KEY = "NEWS_API_KEY"
+ENV_NEWS_API_BASE = "NEWS_API_BASE"
 ENV_REQUEST_TIMEOUT_SECONDS = "REQUEST_TIMEOUT_SECONDS"
 ENV_MAX_SUBQUESTIONS = "MAX_SUBQUESTIONS"
 ENV_MAX_RETRIEVAL_LOOPS = "MAX_RETRIEVAL_LOOPS"
@@ -66,6 +69,23 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class SemanticScholarConfig:
+    """Everything needed to talk to Semantic Scholar."""
+
+    api_key: Optional[str] = None
+    timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS
+
+
+@dataclass(frozen=True)
+class NewsApiConfig:
+    """Everything needed to talk to NewsAPI."""
+
+    api_key: str
+    base_url: str = "https://newsapi.org/v2"
+    timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS
+
+
+@dataclass(frozen=True)
 class PlannerConfig:
     """Bounds the planning use case; injected into it as a plain value."""
 
@@ -85,6 +105,8 @@ class AppConfig:
 
     llm: LLMConfig
     search: SearchConfig
+    semantic_scholar: SemanticScholarConfig
+    news_api: NewsApiConfig
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
 
@@ -194,6 +216,25 @@ def load_search_config(env: Optional[Mapping[str, str]] = None) -> SearchConfig:
     )
 
 
+def load_semantic_scholar_config(env: Optional[Mapping[str, str]] = None) -> SemanticScholarConfig:
+    """Build :class:`SemanticScholarConfig` from ``env`` (defaults to ``os.environ``)."""
+    source = _source(env)
+    return SemanticScholarConfig(
+        api_key=_optional(source, ENV_SEMANTIC_SCHOLAR_API_KEY),
+        timeout_seconds=_timeout_seconds(source),
+    )
+
+
+def load_news_api_config(env: Optional[Mapping[str, str]] = None) -> NewsApiConfig:
+    """Build :class:`NewsApiConfig` from ``env`` (defaults to ``os.environ``)."""
+    source = _source(env)
+    return NewsApiConfig(
+        api_key=_required(source, ENV_NEWS_API_KEY),
+        base_url=_optional(source, ENV_NEWS_API_BASE) or "https://newsapi.org/v2",
+        timeout_seconds=_timeout_seconds(source),
+    )
+
+
 def load_planner_config(env: Optional[Mapping[str, str]] = None) -> PlannerConfig:
     """Build :class:`PlannerConfig` from ``env`` (defaults to ``os.environ``).
 
@@ -216,6 +257,8 @@ def load_config(env: Optional[Mapping[str, str]] = None) -> AppConfig:
     return AppConfig(
         llm=load_llm_config(source),
         search=load_search_config(source),
+        semantic_scholar=load_semantic_scholar_config(source),
+        news_api=load_news_api_config(source),
         planner=load_planner_config(source),
         graph=load_graph_config(source),
     )

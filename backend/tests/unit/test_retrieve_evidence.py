@@ -659,3 +659,89 @@ def test_critic_failure_raises_critique_error(router: RouteToolUseCase) -> None:
 
     with pytest.raises(CritiqueError, match="LLM offline"):
         _build_use_case(router, primary, fallback, critic=critic).execute(sq)
+
+# ---------------------------------------------------------------------------
+# Phase 9: Semantic Scholar and News API Fallback
+# ---------------------------------------------------------------------------
+
+def test_semantic_scholar_succeeds_critic_satisfied(router: RouteToolUseCase) -> None:
+    sq = _sq("A scholarly paper on AI", category=ToolCategory.ACADEMIC)
+    ev = _make_evidence(sub_question_id=sq.id)
+    primary = _FakeGateway(evidence=[ev])
+    fallback = _FakeGateway()
+    critic = _FakeCritic(satisfied=True)
+    
+    result = _build_use_case(router, primary, fallback, primary_tool="semantic_scholar", critic=critic).execute(sq)
+    
+    assert primary.call_count == 1
+    assert critic.call_count == 1
+    assert fallback.call_count == 0
+    assert result.fallback_used is False
+    assert result.resolved is True
+
+def test_semantic_scholar_fails_fallback_succeeds(router: RouteToolUseCase) -> None:
+    sq = _sq("A scholarly paper on AI", category=ToolCategory.ACADEMIC)
+    fallback_ev = _make_evidence(sub_question_id=sq.id, content="fallback")
+    primary = _FakeGateway(error=RuntimeError("timeout"))
+    fallback = _FakeGateway(evidence=[fallback_ev])
+    
+    result = _build_use_case(router, primary, fallback, primary_tool="semantic_scholar").execute(sq)
+    
+    assert primary.call_count == 1
+    assert fallback.call_count == 1
+    assert result.fallback_used is True
+    assert result.resolved is True
+    assert result.attempts[1].fallback_used is True
+    assert result.evidence == [fallback_ev]
+
+def test_semantic_scholar_and_fallback_fail(router: RouteToolUseCase) -> None:
+    sq = _sq("A scholarly paper on AI", category=ToolCategory.ACADEMIC)
+    primary = _FakeGateway(error=RuntimeError("primary down"))
+    fallback = _FakeGateway(error=RuntimeError("fallback down"))
+    
+    result = _build_use_case(router, primary, fallback, primary_tool="semantic_scholar").execute(sq)
+    
+    assert result.resolved is False
+    assert result.evidence == []
+    assert len(result.attempts) == 2
+
+def test_news_api_succeeds_critic_satisfied(router: RouteToolUseCase) -> None:
+    sq = _sq("Latest news on AI", category=ToolCategory.NEWS)
+    ev = _make_evidence(sub_question_id=sq.id)
+    primary = _FakeGateway(evidence=[ev])
+    fallback = _FakeGateway()
+    critic = _FakeCritic(satisfied=True)
+    
+    result = _build_use_case(router, primary, fallback, primary_tool="news_api", critic=critic).execute(sq)
+    
+    assert primary.call_count == 1
+    assert critic.call_count == 1
+    assert fallback.call_count == 0
+    assert result.fallback_used is False
+    assert result.resolved is True
+
+def test_news_api_fails_fallback_succeeds(router: RouteToolUseCase) -> None:
+    sq = _sq("Latest news on AI", category=ToolCategory.NEWS)
+    fallback_ev = _make_evidence(sub_question_id=sq.id, content="fallback")
+    primary = _FakeGateway(error=RuntimeError("timeout"))
+    fallback = _FakeGateway(evidence=[fallback_ev])
+    
+    result = _build_use_case(router, primary, fallback, primary_tool="news_api").execute(sq)
+    
+    assert primary.call_count == 1
+    assert fallback.call_count == 1
+    assert result.fallback_used is True
+    assert result.resolved is True
+    assert result.attempts[1].fallback_used is True
+    assert result.evidence == [fallback_ev]
+
+def test_news_api_and_fallback_fail(router: RouteToolUseCase) -> None:
+    sq = _sq("Latest news on AI", category=ToolCategory.NEWS)
+    primary = _FakeGateway(error=RuntimeError("primary down"))
+    fallback = _FakeGateway(error=RuntimeError("fallback down"))
+    
+    result = _build_use_case(router, primary, fallback, primary_tool="news_api").execute(sq)
+    
+    assert result.resolved is False
+    assert result.evidence == []
+    assert len(result.attempts) == 2
